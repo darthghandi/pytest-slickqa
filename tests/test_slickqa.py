@@ -30,7 +30,7 @@ def test_slick_url(testdir):
              def test_url(url):
                  assert url == "http://google.com"
          """)
-    result = testdir.runpytest('--slick-url', 'http://google.com', '-v')
+    result = testdir.runpytest('--slick-url=http://google.com', '-v')
     result.stdout.fnmatch_lines([
         '*::test_url PASSED',
     ])
@@ -43,5 +43,5 @@ def test_help_message(testdir):
     # fnmatch_lines does an assertion internally
     result.stdout.fnmatch_lines([
         'slickqa:',
-        '*--slick-url=SLICK_URL*the base url of the slick web app*',
+        '*--slick-url=SLICK_URL*',
     ])

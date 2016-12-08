@@ -46,5 +46,5 @@ def pytest_collection_modifyitems(session, config, items):
 
 @pytest.fixture
 def url(request):
-    if hasattr(request.config, 'slick_url'):
-        return request.config.slick_url
+    if hasattr(request.config.option, 'slick_url'):
+        return request.config.option.slick_url
