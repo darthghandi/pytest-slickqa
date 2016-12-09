@@ -5,10 +5,6 @@ pytest-slickqa
     :target: https://travis-ci.org/darthghandi/pytest-slickqa
     :alt: See Build Status on Travis CI
 
-.. image:: https://ci.appveyor.com/api/projects/status/github/darthghandi/pytest-slickqa?branch=master
-    :target: https://ci.appveyor.com/project/darthghandi/pytest-slickqa/branch/master
-    :alt: See Build Status on AppVeyor
-
 A Pytest plugin that reports results to Slickqa
 
 ----

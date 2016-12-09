@@ -23,7 +23,7 @@ setup(
     description='A Pytest plugin that reports results to Slickqa',
     long_description=read('README.rst'),
     py_modules=['pytest_slickqa'],
-    install_requires=['pytest>=2.9.1'],
+    install_requires=['pytest>=2.9.1', 'slickqa'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Framework :: Pytest',

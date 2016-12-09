@@ -2,6 +2,7 @@
 
 import pytest
 import os
+from slickqa import *
 
 
 def pytest_addoption(parser):
@@ -38,13 +39,61 @@ def pytest_addoption(parser):
                          "SLICK_ENVIRONMENT_NAME]")
 
 
-def pytest_collection_modifyitems(session, config, items):
-    for i in items:
-        print(i)
-    pass
+def pytest_configure(config):
+    if hasattr(config.option, 'slick_url'):
+        s = SlickQAPyTestPlugin(config.option)
+        try:
+            s.connect()
+            # Don't register if we cannot successfully connect
+            config.pluginmanager.register(s, '_slickqa')
+        except:
+            pass
+
+
+class SlickQAPyTestPlugin(object):
+    def __init__(self, config):
+        self.url = config.slick_url
+        self.project_name = config.slick_project_name
+        self.release = config.slick_release
+        self.build = config.slick_build
+        self.test_plan = config.slick_testplan
+        self.test_run_name = config.slick_testrun_name
+        self.env_name = config.slick_environment_name
+        self.test_run_group_name = config.slick_testrun_group
+        self.slick = None
+        self.connected = False
+
+    def connect(self):
+        try:
+            self.slick = SlickQA(self.url, self.project_name, self.release, self.build, self.test_plan,
+                                 self.test_run_name, self.env_name, self.test_run_group_name)
+            self.connected = True
+        except SlickCommunicationError as se:
+            print(se)
+
+    def pytest_runtest_logreport(self, report):
+        if report.when != "call" and report.passed:
+            return
+        if self.connected:
+            result = ResultStatus.FAIL
+            reason = ''
+            if report.passed:
+                result = ResultStatus.PASS
+            elif report.skipped:
+                result = ResultStatus.SKIPPED
+            else:
+                reason = report.longreprtext
+            self.slick.file_result(report.nodeid, result, reason, report.duration, runstatus=RunStatus.FINISHED)
 
 
 @pytest.fixture
 def url(request):
     if hasattr(request.config.option, 'slick_url'):
         return request.config.option.slick_url
+
+
+@pytest.fixture
+def slick(request):
+    if hasattr(request.config.option, 'slick_url'):
+        return request.config.pluginmanager.getplugin('_slickqa')
+
