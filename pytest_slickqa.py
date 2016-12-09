@@ -2,6 +2,7 @@
 
 import pytest
 import os
+from datetime import datetime
 from slickqa import *
 
 
@@ -62,6 +63,7 @@ class SlickQAPyTestPlugin(object):
         self.test_run_group_name = config.slick_testrun_group
         self.slick = None
         self.connected = False
+        self.results = {}
 
     def connect(self):
         try:
@@ -71,19 +73,85 @@ class SlickQAPyTestPlugin(object):
         except SlickCommunicationError as se:
             print(se)
 
+    # TODO: refactor this method
+    @pytest.hookimpl(trylast=True)
+    def pytest_collection_modifyitems(self, items):
+        if self.connected:
+            for item in items:
+                # TODO: subclass and make a method to get doc string
+                test_data = DocStringMetaData(item._obj)
+                slick_test_case = Testcase()
+                slick_test_case.name = test_data.name
+                for attribute in ['automationConfiguration', 'automationKey', 'author', 'purpose', 'requirements',
+                                  'tags']:
+                    if attribute is not None and hasattr(test_data, attribute) and \
+                            getattr(test_data, attribute) is not None:
+                        value = getattr(test_data, attribute)
+                        setattr(slick_test_case, attribute, value)
+                slick_test_case.project = self.slick.project.create_reference()
+                if not hasattr(test_data, 'automationId'):
+                    slick_test_case.automationId = item.nodeid
+                if not hasattr(test_data, 'automationTool'):
+                    slick_test_case.automationTool = 'pytest'
+                if not hasattr(test_data, 'automationKey'):
+                    slick_test_case.automationKey = item.fspath.strpath
+                if hasattr(test_data, 'component'):
+                    component = self.slick.get_component(test_data.component)
+                    if component is None:
+                        component = self.slick.create_component(test_data.component)
+                    slick_test_case.component = component.create_reference()
+                if hasattr(test_data, 'steps'):
+                    slick_test_case.steps = []
+                    for step in test_data.steps:
+                        slickstep = Step()
+                        slickstep.name = step
+                        if hasattr(test_data, 'expectedResults') and len(test_data.expectedResults) > len(
+                                slick_test_case.steps):
+                            expected_result = test_data.expectedResults[len(slick_test_case.steps)]
+                            slickstep.expectedResult = expected_result
+                result = self.slick.file_result(slick_test_case.name, ResultStatus.NOT_TESTED, reason="not yet run",
+                                                runlength=0, testdata=slick_test_case, runstatus=RunStatus.TO_BE_RUN)
+                self.results[item.nodeid] = result
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_runtest_setup(self, item):
+        test_name = item.nodeid
+        if self.connected and test_name in self.results:
+            result = self.results[test_name]
+            result.runstatus = RunStatus.RUNNING
+            result.started = datetime.now()
+            result.reason = ""
+            if hasattr(result, 'config') and not hasattr(result.config, 'configId'):
+                del result.config
+            if hasattr(result, 'component') and not hasattr(result.component, 'id'):
+                del result.component
+            result.update()
+
     def pytest_runtest_logreport(self, report):
         if report.when != "call" and report.passed:
             return
-        if self.connected:
-            result = ResultStatus.FAIL
+        test_name = report.nodeid
+        if self.connected and test_name in self.results:
+            result = self.results[test_name]
+            result.finished = datetime.now()
+            result.runlength = int((result.finished - result.started).total_seconds() * 1000)
+            result.runstatus = RunStatus.FINISHED
+            result.status = ResultStatus.FAIL
             reason = ''
             if report.passed:
-                result = ResultStatus.PASS
+                result.status = ResultStatus.PASS
             elif report.skipped:
-                result = ResultStatus.SKIPPED
+                result.status = ResultStatus.SKIPPED
             else:
                 reason = report.longreprtext
-            self.slick.file_result(report.nodeid, result, reason, report.duration, runstatus=RunStatus.FINISHED)
+            result.reason = reason
+            if hasattr(result, 'config') and not hasattr(result.config, 'configId'):
+                del result.config
+            if hasattr(result, 'component') and not hasattr(result.component, 'id'):
+                del result.component
+            result.update()
+
+
 
 
 @pytest.fixture
